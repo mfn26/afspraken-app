@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#12181a" />
+  <title>Afspraken</title>
+  <link rel="manifest" href="manifest.json" />
+  <link rel="icon" href="icon.svg" type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="icon.svg" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div id="app">
+    <header>
+      <h1>Afspraken</h1>
+      <div id="connection-status" class="status">&nbsp;</div>
+    </header>
+
+    <form id="appt-form">
+      <div class="row">
+        <label>
+          <span>Datum</span>
+          <input type="date" id="f-date" required />
+        </label>
+        <label>
+          <span>Tijd (optioneel)</span>
+          <input type="time" id="f-time" />
+        </label>
+      </div>
+      <label>
+        <span>Klant</span>
+        <input type="text" id="f-client" required autocomplete="off" />
+      </label>
+      <label>
+        <span>Adres</span>
+        <input type="text" id="f-address" autocomplete="off" />
+      </label>
+      <div class="row">
+        <label>
+          <span>Km (enkele reis)</span>
+          <input type="number" id="f-km" step="0.1" min="0" inputmode="decimal" />
+        </label>
+        <label>
+          <span>Uren</span>
+          <input type="number" id="f-hours" step="0.25" min="0" inputmode="decimal" />
+        </label>
+      </div>
+      <label>
+        <span>Verwachte omzet (€)</span>
+        <input type="number" id="f-price" step="0.01" min="0" inputmode="decimal" />
+      </label>
+      <label>
+        <span>Notitie</span>
+        <input type="text" id="f-note" autocomplete="off" />
+      </label>
+      <button type="submit" class="btn-primary">Afspraak opslaan</button>
+    </form>
+
+    <div id="save-confirm" class="hidden">
+      <span>Afspraak opgeslagen &#10003;</span>
+      <button id="save-confirm-cal-btn" class="btn-secondary btn-small">Toevoegen aan agenda</button>
+    </div>
+
+    <section id="pending-section">
+      <div class="section-header">
+        <h2>Wachtend om te synchroniseren</h2>
+        <span id="pending-count" class="badge">0</span>
+      </div>
+      <ul id="pending-list"></ul>
+      <button id="sync-btn" class="btn-secondary" disabled>Synchroniseren met Macbook</button>
+      <p id="sync-message" class="hint"></p>
+    </section>
+
+    <section id="pairing-section" class="hidden">
+      <p class="hint">
+        Deze telefoon is nog niet gekoppeld aan de Macbook-app. Scan de QR-code
+        bij Instellingen &rarr; Telefoon koppelen om te beginnen.
+      </p>
+    </section>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
