@@ -327,6 +327,13 @@ syncBtn.addEventListener('click', async () => {
     syncMessageEl.style.color = 'var(--red)';
   }
 
+  // The status badge only reflects whatever checkConnection() last found -
+  // which by default only ever ran once, right when the page first
+  // loaded. Without this, a real successful sync could still leave the
+  // badge stuck on a stale "unreachable" reading from an earlier check,
+  // exactly what was happening before this fix.
+  checkConnection();
+
   syncBtn.textContent = 'Synchroniseren met Macbook';
   renderPending();
 });
