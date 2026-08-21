@@ -212,7 +212,13 @@ async function shareIcs(icsContent, fileName) {
   const blob = new Blob([icsContent], { type: 'text/calendar' });
   const file = typeof File !== 'undefined' ? new File([blob], fileName, { type: 'text/calendar' }) : null;
 
-  if (file && navigator.canShare && navigator.canShare({ files: [file] })) {
+  // Deliberately not gating this on navigator.canShare() first - some
+  // Android browsers report canShare() as false for file shares even when
+  // navigator.share() itself would actually succeed, particularly for
+  // less-common file types like .ics. Attempting the real share directly
+  // and only falling back on an actual failure is more reliable across
+  // browsers than trusting the feature-detection check.
+  if (file && navigator.share) {
     try {
       await navigator.share({ files: [file], title: fileName });
       return;
