@@ -1,3 +1,5 @@
+
+Index · HTML
 <!doctype html>
 <html lang="nl">
 <head>
@@ -16,7 +18,10 @@
       <h1>Afspraken</h1>
       <div id="connection-status" class="status">&nbsp;</div>
     </header>
-
+    <label>
+      <span>Jouw naam (voor klantuitnodigingen)</span>
+      <input type="text" id="f-business-name" autocomplete="off" placeholder="bijv. Anna's Knipsalon" />
+    </label>
     <form id="appt-form">
       <div class="row">
         <label>
@@ -56,12 +61,11 @@
       </label>
       <button type="submit" class="btn-primary">Afspraak opslaan</button>
     </form>
-
     <div id="save-confirm" class="hidden">
       <span>Afspraak opgeslagen &#10003;</span>
       <button id="save-confirm-cal-btn" class="btn-secondary btn-small">Toevoegen aan agenda</button>
+      <button id="save-confirm-invite-btn" class="btn-secondary btn-small">Stuur uitnodiging naar klant</button>
     </div>
-
     <section id="pending-section">
       <div class="section-header">
         <h2>Wachtend om te synchroniseren</h2>
@@ -71,7 +75,6 @@
       <button id="sync-btn" class="btn-secondary" disabled>Synchroniseren met Macbook</button>
       <p id="sync-message" class="hint"></p>
     </section>
-
     <section id="pairing-section" class="hidden">
       <p class="hint">
         Deze telefoon is nog niet gekoppeld aan de Macbook-app. Scan de QR-code
@@ -79,7 +82,7 @@
       </p>
     </section>
   </div>
-
   <script src="app.js"></script>
 </body>
 </html>
+ 
