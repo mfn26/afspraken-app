@@ -1,12 +1,26 @@
 // Caches the app shell so the booking form itself works with zero
 // connectivity. Syncing still requires reaching the Macbook, but entering
 // and saving an appointment never does.
-const CACHE_NAME = 'afspraken-v3';
+const CACHE_NAME = 'afspraken-v4';
 const SHELL_FILES = ['./', 'index.html', 'style.css', 'app.js', 'manifest.json', 'icon.svg'];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(SHELL_FILES))
+    caches.open(CACHE_NAME).then((cache) =>
+      Promise.all(
+        SHELL_FILES.map((file) =>
+          // { cache: 'reload' } forces this to bypass the browser's own
+          // HTTP cache entirely and fetch a genuinely fresh copy every
+          // time this runs. Without it, bumping CACHE_NAME correctly
+          // triggers a new install, but the fetch happening inside that
+          // install can still silently be served from GitHub Pages'
+          // regular HTTP caching underneath - meaning the service
+          // worker's own cache could still end up populated with a
+          // stale file despite doing everything else right.
+          fetch(file, { cache: 'reload' }).then((response) => cache.put(file, response))
+        )
+      )
+    )
   );
   self.skipWaiting();
 });
