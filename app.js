@@ -4,15 +4,16 @@
 // explicitly tap "Synchroniseren", and even then it only ever talks to the
 // Macbook app directly over the local network - never anywhere else.
 //
-// "Toevoegen aan agenda" is a separate, independent action: it builds a
-// standard .ics calendar file for one appointment and hands it to the
-// phone's own share sheet. It never touches the Macbook or any server -
-// it's pure local file generation, so it works instantly, offline, and
-// regardless of whether the Macbook has ever been synced.
+// "Toevoegen aan agenda" and "Stuur uitnodiging naar klant" are separate,
+// independent actions: each builds a standard .ics calendar file and hands
+// it to the phone's own share sheet. Neither ever touches the Macbook or
+// any server - it's pure local file generation, so both work instantly,
+// offline, and regardless of whether the Macbook has ever been synced.
 
 const PENDING_KEY = 'zzp_pending_appointments';
 const TOKEN_KEY = 'zzp_sync_token';
 const SERVER_KEY = 'zzp_sync_server';
+const BUSINESS_NAME_KEY = 'zzp_business_name';
 
 function loadPending() {
   try {
@@ -60,10 +61,27 @@ const pairingSection = document.getElementById('pairing-section');
 const form = document.getElementById('appt-form');
 const saveConfirmEl = document.getElementById('save-confirm');
 const saveConfirmCalBtn = document.getElementById('save-confirm-cal-btn');
+const saveConfirmInviteBtn = document.getElementById('save-confirm-invite-btn');
+const businessNameInput = document.getElementById('f-business-name');
 
 if (!token || !server) {
   pairingSection.classList.remove('hidden');
   syncBtn.disabled = true;
+}
+
+// ---- Business name (used only for the client-facing invite title) ----
+// Stored locally on the phone, entered once. Deliberately kept separate
+// from the Macbook app's own settings - no sync needed for this, it's
+// purely cosmetic text for the client invite, not bookkeeping data.
+function getBusinessName() {
+  return (localStorage.getItem(BUSINESS_NAME_KEY) || '').trim();
+}
+
+if (businessNameInput) {
+  businessNameInput.value = getBusinessName();
+  businessNameInput.addEventListener('input', () => {
+    localStorage.setItem(BUSINESS_NAME_KEY, businessNameInput.value.trim());
+  });
 }
 
 function formatDate(iso) {
@@ -103,11 +121,28 @@ function slugify(str) {
   return slug || 'afspraak';
 }
 
-// Builds a single-event .ics file. Uses a "floating" local time (no
-// timezone conversion, no Z suffix) since this app is single-timezone by
-// design - that's what every calendar app interprets as "your local time"
-// when importing. If no time was entered, falls back to a simple all-day
-// event rather than guessing a time.
+// Shared by both ICS builders below: figures out the DTSTART/DTEND lines
+// for an appointment, falling back to a simple all-day event if no time
+// was entered rather than guessing one.
+function buildIcsDateLines(appt) {
+  const [y, m, d] = (appt.date || '').split('-').map(Number);
+  if (appt.time) {
+    const [hh, mm] = appt.time.split(':').map(Number);
+    const start = new Date(y, m - 1, d, hh, mm, 0);
+    const durationHours = parseFloat(appt.hours) > 0 ? parseFloat(appt.hours) : 1;
+    const end = new Date(start.getTime() + durationHours * 60 * 60 * 1000);
+    return [`DTSTART:${formatIcsDateTime(start)}`, `DTEND:${formatIcsDateTime(end)}`];
+  }
+  const startDate = formatIcsDate(y, m, d);
+  const nextDay = new Date(y, m - 1, d + 1);
+  const endDate = formatIcsDate(nextDay.getFullYear(), nextDay.getMonth() + 1, nextDay.getDate());
+  return [`DTSTART;VALUE=DATE:${startDate}`, `DTEND;VALUE=DATE:${endDate}`];
+}
+
+// Builds a single-event .ics file for HER OWN calendar. Uses a "floating"
+// local time (no timezone conversion, no Z suffix) since this app is
+// single-timezone by design - that's what every calendar app interprets
+// as "your local time" when importing.
 function buildIcsForAppointment(appt) {
   const now = new Date();
   const dtstamp = `${now.getUTCFullYear()}${pad(now.getUTCMonth() + 1)}${pad(now.getUTCDate())}T${pad(now.getUTCHours())}${pad(now.getUTCMinutes())}${pad(now.getUTCSeconds())}Z`;
@@ -118,24 +153,7 @@ function buildIcsForAppointment(appt) {
   if (appt.note) descParts.push(appt.note);
   if (appt.expectedOmzet) descParts.push(`Verwachte omzet: \u20ac${appt.expectedOmzet}`);
   const description = icsEscape(descParts.join(' - '));
-
-  const [y, m, d] = (appt.date || '').split('-').map(Number);
-  let dtstartLine, dtendLine;
-
-  if (appt.time) {
-    const [hh, mm] = appt.time.split(':').map(Number);
-    const start = new Date(y, m - 1, d, hh, mm, 0);
-    const durationHours = parseFloat(appt.hours) > 0 ? parseFloat(appt.hours) : 1;
-    const end = new Date(start.getTime() + durationHours * 60 * 60 * 1000);
-    dtstartLine = `DTSTART:${formatIcsDateTime(start)}`;
-    dtendLine = `DTEND:${formatIcsDateTime(end)}`;
-  } else {
-    const startDate = formatIcsDate(y, m, d);
-    const nextDay = new Date(y, m - 1, d + 1);
-    const endDate = formatIcsDate(nextDay.getFullYear(), nextDay.getMonth() + 1, nextDay.getDate());
-    dtstartLine = `DTSTART;VALUE=DATE:${startDate}`;
-    dtendLine = `DTEND;VALUE=DATE:${endDate}`;
-  }
+  const [dtstartLine, dtendLine] = buildIcsDateLines(appt);
 
   const lines = [
     'BEGIN:VCALENDAR',
@@ -156,15 +174,44 @@ function buildIcsForAppointment(appt) {
   return lines.join('\r\n');
 }
 
-// Hands the .ics file to the phone's native share sheet (so it can go
-// straight to FamilyWall, the native calendar, or anywhere else you pick),
-// falling back to a plain download if the share sheet isn't available.
-async function addToCalendar(appt) {
-  const ics = buildIcsForAppointment(appt);
-  const fileName = `afspraak-${appt.date}-${slugify(appt.client)}.ics`;
-  const blob = new Blob([ics], { type: 'text/calendar' });
+// Builds a single-event .ics file for the CLIENT. Deliberately minimal and
+// separate from her own version above: just a title and the address as
+// location - no notes, no price, nothing internal. Uses a different UID
+// so it's never mistaken for the same calendar entry as her own copy.
+function buildClientIcsForAppointment(appt) {
+  const now = new Date();
+  const dtstamp = `${now.getUTCFullYear()}${pad(now.getUTCMonth() + 1)}${pad(now.getUTCDate())}T${pad(now.getUTCHours())}${pad(now.getUTCMinutes())}${pad(now.getUTCSeconds())}Z`;
+  const uid = `${appt.id}-client@zzp-boekhouding.local`;
+  const businessName = getBusinessName();
+  const summary = icsEscape(businessName ? `Afspraak bij ${businessName}` : 'Knipafspraak');
+  const location = icsEscape(appt.address || '');
+  const [dtstartLine, dtendLine] = buildIcsDateLines(appt);
 
+  const lines = [
+    'BEGIN:VCALENDAR',
+    'VERSION:2.0',
+    'PRODID:-//ZZP Boekhouding//Afspraken//NL',
+    'CALSCALE:GREGORIAN',
+    'BEGIN:VEVENT',
+    `UID:${uid}`,
+    `DTSTAMP:${dtstamp}`,
+    dtstartLine,
+    dtendLine,
+    `SUMMARY:${summary}`
+  ];
+  if (location) lines.push(`LOCATION:${location}`);
+  lines.push('END:VEVENT', 'END:VCALENDAR');
+
+  return lines.join('\r\n');
+}
+
+// Shared by both share actions below: hands an .ics file to the phone's
+// native share sheet, falling back to a plain download if sharing isn't
+// available.
+async function shareIcs(icsContent, fileName) {
+  const blob = new Blob([icsContent], { type: 'text/calendar' });
   const file = typeof File !== 'undefined' ? new File([blob], fileName, { type: 'text/calendar' }) : null;
+
   if (file && navigator.canShare && navigator.canShare({ files: [file] })) {
     try {
       await navigator.share({ files: [file], title: fileName });
@@ -183,6 +230,16 @@ async function addToCalendar(appt) {
   a.click();
   document.body.removeChild(a);
   setTimeout(() => URL.revokeObjectURL(url), 2000);
+}
+
+function addToCalendar(appt) {
+  const fileName = `afspraak-${appt.date}-${slugify(appt.client)}.ics`;
+  return shareIcs(buildIcsForAppointment(appt), fileName);
+}
+
+function inviteClient(appt) {
+  const fileName = `uitnodiging-${appt.date}-${slugify(appt.client)}.ics`;
+  return shareIcs(buildClientIcsForAppointment(appt), fileName);
 }
 
 function renderPending() {
@@ -211,6 +268,12 @@ function renderPending() {
         calBtn.textContent = '\ud83d\udcc5';
         calBtn.onclick = () => addToCalendar(a);
 
+        const inviteBtn = document.createElement('button');
+        inviteBtn.className = 'icon-btn';
+        inviteBtn.title = 'Stuur uitnodiging naar klant';
+        inviteBtn.textContent = '\u2709\ufe0f';
+        inviteBtn.onclick = () => inviteClient(a);
+
         const removeBtn = document.createElement('button');
         removeBtn.className = 'remove-btn';
         removeBtn.textContent = '\u00d7';
@@ -220,6 +283,7 @@ function renderPending() {
         };
 
         actions.appendChild(calBtn);
+        actions.appendChild(inviteBtn);
         actions.appendChild(removeBtn);
         li.appendChild(info);
         li.appendChild(actions);
@@ -262,6 +326,13 @@ saveConfirmCalBtn.addEventListener('click', () => {
   if (lastSavedAppointment) addToCalendar(lastSavedAppointment);
   saveConfirmEl.classList.add('hidden');
 });
+
+if (saveConfirmInviteBtn) {
+  saveConfirmInviteBtn.addEventListener('click', () => {
+    if (lastSavedAppointment) inviteClient(lastSavedAppointment);
+    saveConfirmEl.classList.add('hidden');
+  });
+}
 
 form.addEventListener('input', () => {
   saveConfirmEl.classList.add('hidden');
