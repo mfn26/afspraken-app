@@ -210,7 +210,14 @@ function buildClientIcsForAppointment(appt) {
 // available.
 async function shareIcs(icsContent, fileName) {
   const blob = new Blob([icsContent], { type: 'text/calendar' });
-  const file = typeof File !== 'undefined' ? new File([blob], fileName, { type: 'text/calendar' }) : null;
+  // application/octet-stream instead of text/calendar for the shared File
+  // object specifically: some Android browsers restrict which MIME types
+  // are eligible for direct file sharing from a webpage, and calendar
+  // files are a less universally-allowed category than more common types.
+  // The .ics extension (not this internal label) is what calendar apps
+  // actually use to recognise the file once it's received, so this
+  // doesn't change anything on the receiving end.
+  const file = typeof File !== 'undefined' ? new File([blob], fileName, { type: 'application/octet-stream' }) : null;
 
   // Deliberately not gating this on navigator.canShare() first - some
   // Android browsers report canShare() as false for file shares even when
@@ -276,7 +283,7 @@ function renderPending() {
 
         const inviteBtn = document.createElement('button');
         inviteBtn.className = 'icon-btn';
-        inviteBtn.title = 'Stuur uitnodiging naar klant';
+        inviteBtn.title = 'Stuur uitnodiging';
         inviteBtn.textContent = '\u2709\ufe0f';
         inviteBtn.onclick = () => inviteClient(a);
 
