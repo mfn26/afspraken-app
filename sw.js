@@ -1,7 +1,7 @@
 // Caches the app shell so the booking form itself works with zero
 // connectivity. Syncing still requires reaching the Macbook, but entering
 // and saving an appointment never does.
-const CACHE_NAME = 'afspraken-v7';
+const CACHE_NAME = 'afspraken-v8';
 const SHELL_FILES = ['./', 'index.html', 'style.css', 'app.js', 'manifest.json', 'icon.svg'];
 
 self.addEventListener('install', (event) => {
