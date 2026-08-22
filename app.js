@@ -147,7 +147,7 @@ function buildIcsForAppointment(appt) {
   const now = new Date();
   const dtstamp = `${now.getUTCFullYear()}${pad(now.getUTCMonth() + 1)}${pad(now.getUTCDate())}T${pad(now.getUTCHours())}${pad(now.getUTCMinutes())}${pad(now.getUTCSeconds())}Z`;
   const uid = `${appt.id}@zzp-boekhouding.local`;
-  const summary = icsEscape(`Kapper: ${appt.client}`);
+  const summary = icsEscape(`Kapster: ${appt.client}`);
   const location = icsEscape(appt.address || '');
   const descParts = [];
   if (appt.note) descParts.push(appt.note);
